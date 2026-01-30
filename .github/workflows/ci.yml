@@ -16,5 +16,6 @@ jobs:
           node-version: 20
 
       - run: npm ci
+      - run: mkdir -p ~/.claude
       - run: npm run build
       - run: npm test

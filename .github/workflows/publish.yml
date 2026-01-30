@@ -21,6 +21,10 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - run: npm ci
+
+      # Tests expect ~/.claude to exist (Claude Code config dir)
+      - run: mkdir -p ~/.claude
+
       - run: npm test
       - run: npm run build
 
