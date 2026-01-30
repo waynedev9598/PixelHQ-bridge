@@ -33,11 +33,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/waynedev9598/pixel-office.git",
-    "directory": "bridge"
+    "url": "git+https://github.com/waynedev9598/pixelhq-bridge.git"
   },
-  "homepage": "https://github.com/waynedev9598/pixel-office#readme",
-  "bugs": "https://github.com/waynedev9598/pixel-office/issues",
+  "homepage": "https://github.com/waynedev9598/pixelhq-bridge#readme",
+  "bugs": "https://github.com/waynedev9598/pixelhq-bridge/issues",
   "dependencies": {
     "@inquirer/prompts": "^8.2.0",
     "bonjour-service": "^1.2.1",

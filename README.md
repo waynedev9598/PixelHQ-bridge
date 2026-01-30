@@ -271,8 +271,8 @@ Emitted at the end of a conversation turn. The iOS app uses this to immediately 
 ## Development
 
 ```bash
-git clone https://github.com/waynedev9598/pixel-office.git
-cd pixel-office/bridge
+git clone https://github.com/waynedev9598/pixelhq-bridge.git
+cd pixelhq-bridge
 npm install
 npm run dev        # Development with hot reload
 npm test           # Run all tests
@@ -282,7 +282,7 @@ npm run test:watch # Watch mode
 ### Project Structure
 
 ```
-bridge/
+pixelhq-bridge/
 ├── bin/
 │   └── cli.ts                 # CLI entry point (npx pixelhq)
 ├── src/
@@ -302,6 +302,29 @@ bridge/
 │   └── types.ts               # Shared TypeScript types
 └── tests/                     # vitest test suite
 ```
+
+## Publishing
+
+Releases are published to npm automatically via GitHub Actions with [npm provenance](https://docs.npmjs.com/generating-provenance-statements) — every published version is cryptographically linked to the exact source commit that built it. No code is published from a local machine.
+
+### One-time setup
+
+1. **Create an npm account** at [npmjs.com](https://www.npmjs.com/signup) (if you don't have one)
+2. **Generate an access token** — go to npmjs.com → Access Tokens → Generate New Token → select **Automation**
+3. **Add the token to GitHub** — go to your repo → Settings → Secrets and variables → Actions → New repository secret → name it `NPM_TOKEN`, paste the token
+
+### Releasing a new version
+
+Bump the `version` in `package.json` and push to `main`. That's it.
+
+```bash
+npm version patch   # or minor / major
+git push
+```
+
+CI detects the version change, runs tests, builds, and publishes to npm with provenance. If the version hasn't changed, CI skips the publish step.
+
+Users can verify provenance on the [npm package page](https://www.npmjs.com/package/pixelhq) — it shows the exact commit, repo, and workflow that produced each version.
 
 ## License
 
