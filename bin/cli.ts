@@ -113,6 +113,8 @@ async function showInteractiveMenu(
   console.log('  \u2022 No code content, file paths, or commands are transmitted');
   console.log('  \u2022 Only activity types are sent (e.g. "thinking", "reading file")');
   console.log('  \u2022 All communication stays on your local network');
+  console.log('  \u2022 Open source \u2014 github.com/waynedev9598/PixelHQ-bridge');
+  console.log('  \u2022 Every release is provenance-verified on npm');
   console.log('');
 
   let customPort: number | undefined;

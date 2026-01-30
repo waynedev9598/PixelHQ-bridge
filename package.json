@@ -1,6 +1,6 @@
 {
   "name": "pixelhq",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bridge server that watches Claude Code files and broadcasts events via WebSocket",
   "type": "module",
   "main": "dist/src/index.js",

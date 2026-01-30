@@ -1,6 +1,12 @@
 # pixelhq
 
+[![npm version](https://img.shields.io/npm/v/pixelhq)](https://www.npmjs.com/package/pixelhq)
+[![npm provenance](https://img.shields.io/badge/provenance-verified-brightgreen)](https://www.npmjs.com/package/pixelhq#provenance)
+[![license](https://img.shields.io/npm/l/pixelhq)](https://github.com/waynedev9598/PixelHQ-bridge/blob/main/LICENSE)
+
 A local bridge server that watches AI coding agent session files and broadcasts lightweight activity events over WebSocket. Designed for the [Pixel Office](https://github.com/waynedev9598/pixel-office) iOS app — a pixel-art visualization of your coding activity.
+
+> **Open source & provenance-verified** — Every npm release is [cryptographically linked](https://www.npmjs.com/package/pixelhq#provenance) to the exact source commit that built it. You can audit the code on [GitHub](https://github.com/waynedev9598/PixelHQ-bridge).
 
 ### Supported Agents
 
