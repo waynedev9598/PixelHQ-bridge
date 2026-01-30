@@ -1,0 +1,308 @@
+# pixelhq
+
+A local bridge server that watches AI coding agent session files and broadcasts lightweight activity events over WebSocket. Designed for the [Pixel Office](https://github.com/waynedev9598/pixel-office) iOS app — a pixel-art visualization of your coding activity.
+
+### Supported Agents
+
+- **Claude Code** — fully supported today
+- **Cursor** — coming soon
+- **Codex** — coming soon
+- **Antigravity** — coming soon
+- More to follow
+
+## Quick Start
+
+```bash
+npx pixelhq
+```
+
+An interactive welcome screen walks you through what the bridge does and how it works. Select **Start bridge** to begin.
+
+Once running, the bridge displays a **6-digit pairing code**. Enter it in the Pixel Office iOS app to connect — the app auto-discovers the server via Bonjour on your local network.
+
+```
+  ✓ Claude Code detected at ~/.claude
+  ✓ WebSocket server on port 8765
+  ✓ Broadcasting on local network (192.168.1.100)
+
+  ╔═══════════════════════════════════════╗
+  ║         Pairing Code: 847291          ║
+  ║                                       ║
+  ║  Enter this code in the iOS app to    ║
+  ║  connect. Code regenerates on restart. ║
+  ╚═══════════════════════════════════════╝
+
+  Waiting for Claude Code activity...
+  Press Ctrl+C to stop
+```
+
+For scripts or returning users, skip the interactive menu:
+
+```bash
+npx pixelhq --yes
+```
+
+## Installation
+
+```bash
+# Run without installing
+npx pixelhq
+
+# Or install globally
+npm install -g pixelhq
+pixelhq
+```
+
+## CLI Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--port <number>` | WebSocket server port | `8765` |
+| `--claude-dir <path>` | Path to Claude config directory | auto-detected |
+| `--yes`, `-y` | Skip interactive prompts (non-interactive mode) | |
+| `--verbose` | Show detailed debug logging | |
+| `--help`, `-h` | Show help message | |
+| `--version`, `-v` | Show version number | |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `PIXEL_OFFICE_PORT` | WebSocket server port (overridden by `--port`) |
+| `CLAUDE_CONFIG_DIR` | Claude config directory (overridden by `--claude-dir`) |
+
+## Requirements
+
+- **Node.js 20+**
+- **Claude Code** installed (the server watches `~/.claude/projects/`)
+- iOS app on the **same local network** (for Bonjour discovery)
+
+---
+
+## Privacy — Nothing Sensitive Leaves Your Machine
+
+This is a **local-only** server. It binds to your machine, broadcasts only on your local network, and **never contacts any external service**.
+
+The bridge reads Claude Code's raw JSONL session logs — which contain everything: your prompts, file contents, API keys in tool results, thinking text, bash commands, etc. **None of that is broadcast.** Every event goes through a strict privacy-stripping pipeline before it reaches the WebSocket.
+
+### What IS broadcast
+
+Only structural metadata needed to animate the pixel-art office:
+
+| Data | Example | Why |
+|------|---------|-----|
+| Event type | `"tool"`, `"activity"` | Determines animation |
+| Tool category | `"file_read"`, `"terminal"` | Character walks to correct desk |
+| Action | `"thinking"`, `"responding"` | Controls character animation |
+| Status | `"started"`, `"completed"` | Start/stop animation |
+| File basename | `"auth.ts"` | Shows on character's screen |
+| Grep/glob pattern | `"TODO"`, `"*.ts"` | Shows on character's screen |
+| Bash description | `"Run tests"` | The user-provided label, not the command |
+| Agent type | `"explore"`, `"plan"` | Spawns new character |
+| Token counts | `{ input: 5000, output: 200 }` | Numbers only |
+| Project name | `"pixel-office"` | Last path segment only |
+| Timestamps | ISO-8601 | Event ordering |
+| Session/event IDs | UUIDs | Correlation |
+
+### What is NOT broadcast
+
+All content is stripped before broadcast. This includes:
+
+| Sensitive data | How it's handled |
+|----------------|-----------------|
+| File contents | Stripped entirely — only the basename is kept |
+| Code (edits, writes) | Stripped — old/new strings never leave |
+| Bash commands | Stripped — only the optional `description` field is used |
+| Thinking text | Stripped — never included |
+| Assistant responses | Stripped — never included |
+| User prompts | Stripped — only the presence of a prompt is noted |
+| Tool result output | Stripped — only success/error status is kept |
+| Full file paths | Stripped to basename (`/Users/you/project/src/auth.ts` → `auth.ts`) |
+| Full project paths | Stripped to last segment (`/Users/you/Projects/my-app` → `my-app`) |
+| URLs (WebFetch) | Stripped entirely |
+| Search queries (WebSearch) | Stripped entirely |
+| Task prompts | Stripped — only the agent type (`explore`, `bash`) is kept |
+| Todo content | Stripped — only the count (`"3 items"`) is kept |
+| Error messages | Stripped — only the severity (`warning`/`error`) is kept |
+| API keys, secrets | Never included — content fields are never broadcast |
+
+### How stripping works
+
+The pipeline has three stages:
+
+```
+JSONL file  →  Parser  →  Adapter  →  WebSocket
+(raw data)    (parse)    (strip)     (broadcast)
+```
+
+1. **Parser** (`src/parser.ts`) — Reads raw JSONL, parses JSON, passes structured data to the adapter.
+2. **Adapter** (`src/adapters/claude-code.ts`) — The privacy gate. Uses an explicit allowlist per tool to extract only safe fields. Unknown tools produce no context at all.
+3. **Broadcast** (`src/websocket.ts`) — Sends the already-filtered events to connected clients. No additional data is added.
+
+Privacy utilities (`toBasename`, `toProjectName` in `src/pixel-events.ts`) ensure paths are always stripped to their last segment.
+
+### Test-verified
+
+The test suite includes dedicated privacy tests that feed sensitive data (API keys, passwords, file paths, secrets) through the full pipeline and assert **none of it appears in broadcast output**:
+
+```
+tests/pipeline.test.ts            → Full pipeline privacy verification
+tests/claude-code-adapter.test.ts → Per-tool privacy audit
+```
+
+Run them yourself:
+
+```bash
+npm test
+```
+
+---
+
+## How It Works
+
+```
+~/.claude/projects/**/*.jsonl
+        │
+        ▼
+   ┌─────────┐     ┌─────────┐     ┌───────────┐     ┌────────────┐
+   │ Watcher  │────▶│ Parser  │────▶│  Adapter  │────▶│ WebSocket  │
+   │(chokidar)│     │ (JSONL) │     │ (privacy) │     │ broadcast  │
+   └─────────┘     └─────────┘     └───────────┘     └────────────┘
+                                                            │
+                                        ┌───────────┐      │
+                                        │  Bonjour  │      │
+                                        │  (mDNS)   │      │
+                                        └───────────┘      │
+                                                            ▼
+                                                    iOS app (SpriteKit)
+```
+
+1. **Watch** — Monitors Claude Code's append-only JSONL session files using chokidar
+2. **Parse** — Parses each new line as JSON, routes to the correct adapter
+3. **Transform** — Adapter strips sensitive content, maps tools to categories, produces normalized events
+4. **Broadcast** — Sends events over WebSocket to connected clients on the local network
+5. **Discover** — Advertises via Bonjour/mDNS so the iOS app finds the server automatically
+6. **Authenticate** — Devices must pair with a one-time 6-digit code to receive events. Tokens persist across restarts.
+
+## Event Schema
+
+Every WebSocket message has this envelope:
+
+```json
+{ "type": "event", "payload": { ...PixelEvent } }
+```
+
+### Session
+
+```json
+{
+  "type": "session",
+  "sessionId": "abc-123",
+  "action": "started",
+  "project": "my-app"
+}
+```
+
+Actions: `started`, `ended`
+
+### Activity
+
+```json
+{
+  "type": "activity",
+  "sessionId": "abc-123",
+  "action": "thinking"
+}
+```
+
+Actions: `thinking`, `responding`, `waiting`, `user_prompt`
+
+### Tool
+
+```json
+{
+  "type": "tool",
+  "sessionId": "abc-123",
+  "tool": "file_read",
+  "detail": "read",
+  "status": "started",
+  "context": "auth.ts"
+}
+```
+
+Tool categories: `file_read`, `file_write`, `terminal`, `search`, `plan`, `communicate`, `spawn_agent`, `notebook`, `other`
+
+### Agent
+
+```json
+{
+  "type": "agent",
+  "sessionId": "abc-123",
+  "action": "spawned",
+  "agentRole": "explore"
+}
+```
+
+Actions: `spawned`, `completed`, `error`
+
+### Summary
+
+```json
+{
+  "type": "summary",
+  "sessionId": "abc-123"
+}
+```
+
+Emitted at the end of a conversation turn. The iOS app uses this to immediately begin the idle/cooling transition (no wait for the full idle timer).
+
+### Error
+
+```json
+{
+  "type": "error",
+  "sessionId": "abc-123",
+  "severity": "error"
+}
+```
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/waynedev9598/pixel-office.git
+cd pixel-office/bridge
+npm install
+npm run dev        # Development with hot reload
+npm test           # Run all tests
+npm run test:watch # Watch mode
+```
+
+### Project Structure
+
+```
+bridge/
+├── bin/
+│   └── cli.ts                 # CLI entry point (npx pixelhq)
+├── src/
+│   ├── index.ts               # Bridge orchestrator
+│   ├── config.ts              # Configuration + CLI args
+│   ├── logger.ts              # Centralized logger (normal/verbose modes)
+│   ├── watcher.ts             # File watcher (chokidar)
+│   ├── parser.ts              # JSONL parsing
+│   ├── adapters/
+│   │   └── claude-code.ts     # Privacy-stripping adapter
+│   ├── pixel-events.ts        # Event factories + privacy utils
+│   ├── session.ts             # Session tracking + agent state
+│   ├── auth.ts                # Device pairing + token auth
+│   ├── websocket.ts           # WebSocket server (ws)
+│   ├── bonjour.ts             # mDNS advertisement
+│   ├── typed-emitter.ts       # Type-safe EventEmitter
+│   └── types.ts               # Shared TypeScript types
+└── tests/                     # vitest test suite
+```
+
+## License
+
+MIT

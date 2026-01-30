@@ -1,0 +1,55 @@
+{
+  "name": "pixelhq",
+  "version": "1.0.0",
+  "description": "Bridge server that watches Claude Code files and broadcasts events via WebSocket",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "bin": {
+    "pixelhq": "dist/bin/cli.js"
+  },
+  "files": [
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/bin/cli.js",
+    "dev": "tsc && node --watch dist/bin/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "claude-code",
+    "websocket",
+    "pixel-office",
+    "pixelhq"
+  ],
+  "author": "waynedev9598",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/waynedev9598/pixel-office.git",
+    "directory": "bridge"
+  },
+  "homepage": "https://github.com/waynedev9598/pixel-office#readme",
+  "bugs": "https://github.com/waynedev9598/pixel-office/issues",
+  "dependencies": {
+    "@inquirer/prompts": "^8.2.0",
+    "bonjour-service": "^1.2.1",
+    "chokidar": "^3.6.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
