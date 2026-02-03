@@ -11,9 +11,9 @@ A local bridge server that watches AI coding agent session files and broadcasts 
 ### Supported Agents
 
 - **Claude Code** — fully supported today
+- **Antigravity** — fully supported
 - **Cursor** — coming soon
 - **Codex** — coming soon
-- **Antigravity** — coming soon
 - More to follow
 
 ## Quick Start
@@ -65,6 +65,7 @@ pixelhq
 |------|-------------|---------|
 | `--port <number>` | WebSocket server port | `8765` |
 | `--claude-dir <path>` | Path to Claude config directory | auto-detected |
+| `--antigravity-dir <path>` | Path to Antigravity config directory | auto-detected |
 | `--yes`, `-y` | Skip interactive prompts (non-interactive mode) | |
 | `--verbose` | Show detailed debug logging | |
 | `--help`, `-h` | Show help message | |
@@ -76,6 +77,7 @@ pixelhq
 |----------|-------------|
 | `PIXEL_OFFICE_PORT` | WebSocket server port (overridden by `--port`) |
 | `CLAUDE_CONFIG_DIR` | Claude config directory (overridden by `--claude-dir`) |
+| `ANTIGRAVITY_CONFIG_DIR` | Antigravity config directory (overridden by `--antigravity-dir`) |
 
 ## Requirements
 

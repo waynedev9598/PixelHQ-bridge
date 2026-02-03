@@ -11,6 +11,7 @@ import { logger } from './logger.js';
 
 export interface PreflightResult {
   claudeDir: string;
+  antigravityDir: string | null;
   port: number;
   pairedDevices: number;
 }
@@ -40,14 +41,18 @@ export class PixelOfficeBridge {
 
   /** Run pre-flight validation without starting anything */
   preflight(): PreflightResult {
-    if (!existsSync(config.claudeDir)) {
+    const hasClaude = existsSync(config.claudeDir);
+    const hasAntigravity = config.antigravityDir && existsSync(config.antigravityDir);
+
+    if (!hasClaude && !hasAntigravity) {
       throw new Error(
-        `Claude Code not found at ${config.claudeDir}`
+        `Neither Claude Code (${config.claudeDir}) nor Antigravity found.`
       );
     }
 
     return {
       claudeDir: config.claudeDir,
+      antigravityDir: config.antigravityDir,
       port: config.wsPort,
       pairedDevices: this.authManager.tokens.size,
     };
@@ -81,8 +86,13 @@ export class PixelOfficeBridge {
 
       this.isRunning = true;
 
-      logger.verbose('Bridge', `Claude dir: ${config.claudeDir} (${config.claudeDirResolvedVia})`);
-      logger.verbose('Bridge', `Watching: ${config.projectsDir}`);
+      if (existsSync(config.claudeDir)) {
+          logger.verbose('Bridge', `Claude Code: ${config.claudeDir} (${config.claudeDirResolvedVia})`);
+      }
+      if (config.antigravityDir && existsSync(config.antigravityDir)) {
+          logger.verbose('Bridge', `Antigravity: ${config.antigravityDir} (${config.antigravityDirResolvedVia || 'auto'})`);
+      }
+      logger.verbose('Bridge', `Watching: ${config.projectsDir} ` + (config.antigravitySessionsDir ? `& ${config.antigravitySessionsDir}` : ''));
 
       this.setupShutdownHandlers();
 
@@ -93,16 +103,16 @@ export class PixelOfficeBridge {
   }
 
   private setupEventHandlers(): void {
-    this.watcher.on('session', ({ sessionId, agentId, project }) => {
-      this.sessionManager.registerSession(sessionId, project, agentId);
+    this.watcher.on('session', ({ sessionId, agentId, project, source }) => {
+      this.sessionManager.registerSession(sessionId, project, agentId, source);
 
       if (agentId) {
         this.sessionManager.correlateAgentFile(sessionId, agentId);
       }
     });
 
-    this.watcher.on('line', ({ line, sessionId, agentId, filePath }) => {
-      this.handleNewLine(line, sessionId, agentId, filePath);
+    this.watcher.on('line', ({ line, sessionId, agentId, filePath, source }) => {
+      this.handleNewLine(line, sessionId, agentId, filePath, source);
     });
 
     this.watcher.on('error', (error) => {
@@ -119,10 +129,11 @@ export class PixelOfficeBridge {
     sessionId: string,
     agentId: string | null,
     filePath: string,
+    source: string = 'claude-code',
   ): void {
     if (!this.sessionManager.sessions.has(sessionId)) {
       const { project } = this.watcher.parseFilePath(filePath);
-      this.sessionManager.registerSession(sessionId, project, agentId);
+      this.sessionManager.registerSession(sessionId, project, agentId, source);
     }
 
     const resolvedAgentId = agentId
@@ -131,7 +142,7 @@ export class PixelOfficeBridge {
     const raw = parseJsonlLine(line, sessionId, resolvedAgentId);
     if (!raw) return;
 
-    const events = transformToPixelEvents(raw);
+    const events = transformToPixelEvents(raw, source);
 
     this.sessionManager.recordActivity(sessionId);
 

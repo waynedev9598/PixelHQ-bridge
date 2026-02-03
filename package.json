@@ -17,6 +17,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "type-check": "tsc --noEmit",
     "start": "node dist/bin/cli.js",
     "dev": "tsc && node --watch dist/bin/cli.js",
     "test": "vitest run",

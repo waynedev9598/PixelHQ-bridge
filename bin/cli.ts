@@ -32,23 +32,25 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log(`
   ${pkg.name} v${pkg.version}
 
-  Watches Claude Code session files and broadcasts events
+  Watches Claude Code and Antigravity session files and broadcasts events
   via WebSocket for the Pixel Office iOS app.
 
   Usage
     $ pixelhq [options]
 
   Options
-    --port <number>       WebSocket server port (default: 8765)
-    --claude-dir <path>   Path to Claude config directory
-    --yes, -y             Skip interactive prompts (non-interactive mode)
-    --verbose             Show detailed debug logging
+    --port <number>             WebSocket server port (default: 8765)
+    --claude-dir <path>         Path to Claude config directory
+    --antigravity-dir <path>    Path to Antigravity config directory
+    --yes, -y                   Skip interactive prompts (non-interactive mode)
+    --verbose                   Show detailed debug logging
     --help, -h            Show this help message
     --version, -v         Show version number
 
   Environment variables
     PIXEL_OFFICE_PORT     WebSocket server port
     CLAUDE_CONFIG_DIR     Path to Claude config directory
+    ANTIGRAVITY_CONFIG_DIR  Path to Antigravity config directory
 
   Examples
     $ npx pixelhq
@@ -56,6 +58,7 @@ if (args.includes('--help') || args.includes('-h')) {
     $ npx pixelhq --port 9999
     $ npx pixelhq --verbose
     $ pixelhq --claude-dir ~/.config/claude
+    $ pixelhq --antigravity-dir ~/.antigravity
 `);
   process.exit(0);
 }
@@ -95,16 +98,17 @@ async function showInteractiveMenu(
   logger: typeof import('../src/logger.js').logger,
 ): Promise<void> {
   const { select, input } = await import('@inquirer/prompts');
+  const { config } = await import('../src/config.js');
 
   console.log('');
   console.log(`  ${pkg.name} v${pkg.version}`);
   console.log('');
-  console.log('  Pixel Office Bridge watches your Claude Code sessions');
+  console.log('  Pixel Office Bridge watches your sessions (Claude Code / Antigravity)');
   console.log('  and streams activity to the Pixel Office iOS app as');
   console.log('  real-time pixel art animations.');
   console.log('');
   console.log('  How it works:');
-  console.log('  \u2022 Watches ~/.claude/projects/ for session activity');
+  console.log('  \u2022 Watches local session logs for activity');
   console.log('  \u2022 Broadcasts events on your local network via WebSocket');
   console.log('  \u2022 iOS app discovers this bridge automatically via Bonjour');
   console.log('');
@@ -119,6 +123,7 @@ async function showInteractiveMenu(
 
   let customPort: number | undefined;
   let customClaudeDir: string | undefined;
+  let customAntigravityDir: string | undefined;
 
   while (true) {
     const choice = await select({
@@ -144,12 +149,32 @@ async function showInteractiveMenu(
         customPort = parsedPort;
       }
 
+
+
+      const claudeDefault = config.claudeDir || join(process.env.HOME || '', '.claude');
+      const claudeMsg = config.claudeDir 
+        ? `Claude config directory (found at ${config.claudeDir}):`
+        : 'Claude config directory (not detected, default ~/.claude):';
+
       const claudeDirInput = await input({
-        message: 'Claude config directory:',
-        default: customClaudeDir ?? '~/.claude',
+        message: claudeMsg,
+        default: customClaudeDir ?? claudeDefault,
       });
-      if (claudeDirInput && claudeDirInput !== '~/.claude') {
+      if (claudeDirInput && claudeDirInput !== claudeDefault) {
         customClaudeDir = claudeDirInput;
+      }
+
+      const antigravityDefault = config.antigravityDir || join(process.env.HOME || '', '.antigravity');
+      const agMsg = config.antigravityDir 
+        ? `Antigravity config directory (found at ${config.antigravityDir}):`
+        : 'Antigravity config directory (not detected, default ~/.antigravity):';
+
+      const antigravityDirInput = await input({
+        message: agMsg,
+        default: customAntigravityDir ?? antigravityDefault,
+      });
+      if (antigravityDirInput && antigravityDirInput !== antigravityDefault) {
+        customAntigravityDir = antigravityDirInput;
       }
 
       // Apply custom options by modifying argv before config re-reads
@@ -170,8 +195,20 @@ async function showInteractiveMenu(
         }
       }
 
+      if (customAntigravityDir) {
+        const agIdx = process.argv.indexOf('--antigravity-dir');
+        if (agIdx !== -1) {
+          process.argv[agIdx + 1] = customAntigravityDir;
+        } else {
+          process.argv.push('--antigravity-dir', customAntigravityDir);
+        }
+      }
+
       console.log('');
-      console.log(`  Options updated. Port: ${customPort ?? 8765}, Claude dir: ${customClaudeDir ?? '~/.claude'}`);
+      console.log('  Options updated.');
+      console.log(`  Port:        ${customPort ?? 8765}`);
+      console.log(`  Claude:      ${customClaudeDir ?? (config.claudeDir || 'auto')}`);
+      console.log(`  Antigravity: ${customAntigravityDir ?? (config.antigravityDir || 'auto')}`);
       console.log('');
       continue;
     }
@@ -192,15 +229,24 @@ async function startBridge(
   // Pre-flight checks
   try {
     const info = bridge.preflight();
-    logger.info('\u2713 Claude Code detected at ' + info.claudeDir);
+    if (existsSync(info.claudeDir)) {
+      logger.info('\u2713 Claude Code detected');
+    }
+    if (info.antigravityDir && existsSync(info.antigravityDir)) {
+      logger.info('\u2713 Antigravity detected');
+    }
   } catch (err) {
     console.log('');
-    console.log('  \u2717 Claude Code not found');
+    console.log('  \u2717 No supported agents found');
     console.log('');
-    console.log('  Could not find ~/.claude/projects directory.');
-    console.log('  Make sure Claude Code is installed and has been used at least once.');
+    console.log('  Could not find Claude Code configured at ~/.claude/projects');
+    console.log('  OR Antigravity configured at ~/.antigravity/sessions');
     console.log('');
-    console.log('  Specify a custom path:  npx pixelhq --claude-dir /path/to/claude');
+    console.log('  Make sure at least one agent is installed and has been used.');
+    console.log('');
+    console.log('  Run with custom paths:');
+    console.log('    npx pixelhq --claude-dir <path>');
+    console.log('    npx pixelhq --antigravity-dir <path>');
     console.log('');
     process.exit(1);
   }
@@ -235,7 +281,8 @@ async function startBridge(
   console.log('  \u2551  connect. Code regenerates on restart. \u2551');
   console.log('  \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D');
   logger.blank();
-  logger.info('Waiting for Claude Code activity...');
+  logger.blank();
+  logger.info('Waiting for agent activity...');
   logger.info('Press Ctrl+C to stop');
   logger.blank();
 }

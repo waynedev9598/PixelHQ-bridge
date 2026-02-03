@@ -79,6 +79,40 @@ export function resolveClaudeDir(): ResolvedClaudeDir {
 const resolved = resolveClaudeDir();
 
 // ---------------------------------------------------------------------------
+// Antigravity directory auto-detection
+// ---------------------------------------------------------------------------
+
+interface ResolvedAntigravityDir {
+  antigravityDir: string | null;
+  antigravitySessionsDir: string | null;
+  resolvedVia: string | null;
+}
+
+export function resolveAntigravityDir(): ResolvedAntigravityDir {
+  const home = homedir();
+  const candidates = [
+    { path: getCliArg('antigravity-dir'), via: '--antigravity-dir flag' },
+    { path: process.env.ANTIGRAVITY_CONFIG_DIR, via: 'ANTIGRAVITY_CONFIG_DIR env' },
+    { path: join(home, '.antigravity'), via: 'default (~/.antigravity)' },
+    { path: join(home, '.config', 'antigravity'), via: 'XDG (~/.config/antigravity)' },
+  ];
+
+  for (const { path, via } of candidates) {
+    if (path && existsSync(path)) {
+      const sessions = join(path, 'sessions'); 
+      return { 
+        antigravityDir: path, 
+        antigravitySessionsDir: sessions,
+        resolvedVia: via
+      };
+    }
+  }
+  return { antigravityDir: null, antigravitySessionsDir: null, resolvedVia: null };
+}
+
+const resolvedAntigravity = resolveAntigravityDir();
+
+// ---------------------------------------------------------------------------
 // Bridge server configuration
 // ---------------------------------------------------------------------------
 
@@ -86,6 +120,9 @@ export const config = {
   claudeDir: resolved.claudeDir,
   projectsDir: resolved.projectsDir,
   claudeDirResolvedVia: resolved.resolvedVia,
+  antigravityDir: resolvedAntigravity.antigravityDir,
+  antigravitySessionsDir: resolvedAntigravity.antigravitySessionsDir,
+  antigravityDirResolvedVia: resolvedAntigravity.resolvedVia,
   version: pkg.version,
   wsPort: Number(getCliArg('port') || process.env.PIXEL_OFFICE_PORT || 8765),
   bonjourName: 'Pixel Office Bridge',
