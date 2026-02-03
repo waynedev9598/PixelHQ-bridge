@@ -167,6 +167,7 @@ export interface WatcherSessionEvent {
   project: string;
   filePath: string;
   action: 'discovered';
+  source?: string;
 }
 
 export interface WatcherLineEvent {
@@ -174,12 +175,14 @@ export interface WatcherLineEvent {
   sessionId: string;
   agentId: string | null;
   filePath: string;
+  source?: string;
 }
 
 export interface ParsedFilePath {
   sessionId: string;
   agentId: string | null;
   project: string;
+  source: string;
 }
 
 // ---------------------------------------------------------------------------
