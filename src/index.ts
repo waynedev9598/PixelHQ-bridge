@@ -93,16 +93,16 @@ export class PixelOfficeBridge {
   }
 
   private setupEventHandlers(): void {
-    this.watcher.on('session', ({ sessionId, agentId, project }) => {
-      this.sessionManager.registerSession(sessionId, project, agentId);
+    this.watcher.on('session', ({ sessionId, agentId, project, source }) => {
+      this.sessionManager.registerSession(sessionId, project, agentId, source || 'claude-code');
 
       if (agentId) {
         this.sessionManager.correlateAgentFile(sessionId, agentId);
       }
     });
 
-    this.watcher.on('line', ({ line, sessionId, agentId, filePath }) => {
-      this.handleNewLine(line, sessionId, agentId, filePath);
+    this.watcher.on('line', ({ line, sessionId, agentId, filePath, source }) => {
+      this.handleNewLine(line, sessionId, agentId, filePath, source || 'claude-code');
     });
 
     this.watcher.on('error', (error) => {
@@ -119,10 +119,11 @@ export class PixelOfficeBridge {
     sessionId: string,
     agentId: string | null,
     filePath: string,
+    source: string = 'claude-code',
   ): void {
     if (!this.sessionManager.sessions.has(sessionId)) {
       const { project } = this.watcher.parseFilePath(filePath);
-      this.sessionManager.registerSession(sessionId, project, agentId);
+      this.sessionManager.registerSession(sessionId, project, agentId, source);
     }
 
     const resolvedAgentId = agentId
@@ -131,7 +132,7 @@ export class PixelOfficeBridge {
     const raw = parseJsonlLine(line, sessionId, resolvedAgentId);
     if (!raw) return;
 
-    const events = transformToPixelEvents(raw);
+    const events = transformToPixelEvents(raw, source);
 
     this.sessionManager.recordActivity(sessionId);
 
