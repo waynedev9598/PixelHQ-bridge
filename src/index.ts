@@ -11,6 +11,7 @@ import { logger } from './logger.js';
 
 export interface PreflightResult {
   claudeDir: string;
+  codexDir: string | null;
   port: number;
   pairedDevices: number;
 }
@@ -18,8 +19,8 @@ export interface PreflightResult {
 /**
  * Pixel Office Bridge Server
  *
- * Watches Claude Code session files and broadcasts events
- * to connected iOS clients via WebSocket.
+ * Watches AI agent session files (Claude Code, Codex CLI) and broadcasts
+ * events to connected iOS clients via WebSocket.
  */
 export class PixelOfficeBridge {
   private watcher: SessionWatcher;
@@ -40,14 +41,21 @@ export class PixelOfficeBridge {
 
   /** Run pre-flight validation without starting anything */
   preflight(): PreflightResult {
-    if (!existsSync(config.claudeDir)) {
+    const hasClaudeCode = existsSync(config.claudeDir);
+    const hasCodex = config.codexDir !== null && existsSync(config.codexDir);
+
+    if (!hasClaudeCode && !hasCodex) {
       throw new Error(
-        `Claude Code not found at ${config.claudeDir}`
+        'No supported agent found. Tried:\n' +
+        `  - Claude Code at ${config.claudeDir}\n` +
+        (config.codexDir ? `  - Codex at ${config.codexDir}\n` : '') +
+        '\nInstall Claude Code or Codex CLI to use the bridge.'
       );
     }
 
     return {
       claudeDir: config.claudeDir,
+      codexDir: config.codexDir,
       port: config.wsPort,
       pairedDevices: this.authManager.tokens.size,
     };
@@ -84,6 +92,11 @@ export class PixelOfficeBridge {
       logger.verbose('Bridge', `Claude dir: ${config.claudeDir} (${config.claudeDirResolvedVia})`);
       logger.verbose('Bridge', `Watching: ${config.projectsDir}`);
 
+      if (config.codexDir) {
+        logger.verbose('Bridge', `Codex dir: ${config.codexDir} (${config.codexDirResolvedVia})`);
+        logger.verbose('Bridge', `Watching: ${config.codexSessionsDir}`);
+      }
+
       this.setupShutdownHandlers();
 
     } catch (error) {
@@ -93,16 +106,16 @@ export class PixelOfficeBridge {
   }
 
   private setupEventHandlers(): void {
-    this.watcher.on('session', ({ sessionId, agentId, project }) => {
-      this.sessionManager.registerSession(sessionId, project, agentId);
+    this.watcher.on('session', ({ sessionId, agentId, project, source }) => {
+      this.sessionManager.registerSession(sessionId, project, agentId, source || 'claude-code');
 
       if (agentId) {
         this.sessionManager.correlateAgentFile(sessionId, agentId);
       }
     });
 
-    this.watcher.on('line', ({ line, sessionId, agentId, filePath }) => {
-      this.handleNewLine(line, sessionId, agentId, filePath);
+    this.watcher.on('line', ({ line, sessionId, agentId, filePath, source }) => {
+      this.handleNewLine(line, sessionId, agentId, filePath, source || 'claude-code');
     });
 
     this.watcher.on('error', (error) => {
@@ -119,10 +132,11 @@ export class PixelOfficeBridge {
     sessionId: string,
     agentId: string | null,
     filePath: string,
+    source: string = 'claude-code',
   ): void {
     if (!this.sessionManager.sessions.has(sessionId)) {
       const { project } = this.watcher.parseFilePath(filePath);
-      this.sessionManager.registerSession(sessionId, project, agentId);
+      this.sessionManager.registerSession(sessionId, project, agentId, source);
     }
 
     const resolvedAgentId = agentId
@@ -131,7 +145,7 @@ export class PixelOfficeBridge {
     const raw = parseJsonlLine(line, sessionId, resolvedAgentId);
     if (!raw) return;
 
-    const events = transformToPixelEvents(raw);
+    const events = transformToPixelEvents(raw, source);
 
     this.sessionManager.recordActivity(sessionId);
 

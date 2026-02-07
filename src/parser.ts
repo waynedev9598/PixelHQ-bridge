@@ -1,10 +1,12 @@
 import { claudeCodeAdapter } from './adapters/claude-code.js';
+import { codexAdapter } from './adapters/codex.js';
 import type { PixelEvent, RawJsonlEvent } from './types.js';
 
 type Adapter = (raw: RawJsonlEvent) => PixelEvent[];
 
 const adapters: Record<string, Adapter> = {
   'claude-code': claudeCodeAdapter,
+  'codex': codexAdapter,
 };
 
 /**

@@ -75,8 +75,41 @@ export function resolveClaudeDir(): ResolvedClaudeDir {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Codex directory auto-detection
+// ---------------------------------------------------------------------------
+
+interface ResolvedCodexDir {
+  codexDir: string;
+  codexSessionsDir: string;
+  resolvedVia: string;
+}
+
+export function resolveCodexDir(): ResolvedCodexDir | null {
+  const home = homedir();
+  const candidates: { path: string | null | undefined; via: string }[] = [
+    { path: getCliArg('codex-dir'), via: '--codex-dir flag' },
+    { path: process.env.CODEX_HOME, via: 'CODEX_HOME env' },
+    { path: join(home, '.codex'), via: 'default (~/.codex)' },
+  ];
+
+  for (const { path, via } of candidates) {
+    if (!path) continue;
+    const sessionsDir = join(path, 'sessions');
+    if (existsSync(sessionsDir)) {
+      return { codexDir: path, codexSessionsDir: sessionsDir, resolvedVia: via };
+    }
+    if (existsSync(path)) {
+      return { codexDir: path, codexSessionsDir: sessionsDir, resolvedVia: `${via} (no sessions/ yet)` };
+    }
+  }
+
+  return null;
+}
+
 // Resolve once at import time
 const resolved = resolveClaudeDir();
+const resolvedCodex = resolveCodexDir();
 
 // ---------------------------------------------------------------------------
 // Bridge server configuration
@@ -86,6 +119,9 @@ export const config = {
   claudeDir: resolved.claudeDir,
   projectsDir: resolved.projectsDir,
   claudeDirResolvedVia: resolved.resolvedVia,
+  codexDir: resolvedCodex?.codexDir ?? null as string | null,
+  codexSessionsDir: resolvedCodex?.codexSessionsDir ?? null as string | null,
+  codexDirResolvedVia: resolvedCodex?.resolvedVia ?? null as string | null,
   version: pkg.version,
   wsPort: Number(getCliArg('port') || process.env.PIXEL_OFFICE_PORT || 8765),
   bonjourName: 'Pixel Office Bridge',
@@ -96,7 +132,7 @@ export const config = {
   authTokenFile: join(resolved.claudeDir, 'pixel-office-auth.json'),
   verbose: hasCliFlag('verbose'),
   nonInteractive: hasCliFlag('yes') || hasCliFlag('y') || process.env.CI === 'true',
-} as const;
+};
 
 // ---------------------------------------------------------------------------
 // PixelEvent types
@@ -142,4 +178,27 @@ export const TOOL_TO_CATEGORY: Record<string, ToolMapping> = {
   ExitPlanMode:    { category: ToolCategory.PLAN,         detail: 'exit_plan' },
   AskUserQuestion: { category: ToolCategory.COMMUNICATE,  detail: 'ask_user' },
   NotebookEdit:    { category: ToolCategory.NOTEBOOK,     detail: 'notebook' },
+};
+
+// ---------------------------------------------------------------------------
+// Codex tool category mapping
+// ---------------------------------------------------------------------------
+
+export const CODEX_TOOL_TO_CATEGORY: Record<string, ToolMapping> = {
+  shell:              { category: ToolCategory.TERMINAL,     detail: 'bash' },
+  exec_command:       { category: ToolCategory.TERMINAL,     detail: 'bash' },
+  apply_patch:        { category: ToolCategory.FILE_WRITE,   detail: 'patch' },
+  read_file:          { category: ToolCategory.FILE_READ,    detail: 'read' },
+  list_dir:           { category: ToolCategory.SEARCH,       detail: 'list_dir' },
+  grep_files:         { category: ToolCategory.SEARCH,       detail: 'grep' },
+  view_image:         { category: ToolCategory.FILE_READ,    detail: 'image' },
+  get_memory:         { category: ToolCategory.OTHER,        detail: 'memory' },
+  plan:               { category: ToolCategory.PLAN,         detail: 'plan' },
+  update_plan:        { category: ToolCategory.PLAN,         detail: 'plan' },
+  request_user_input: { category: ToolCategory.COMMUNICATE,  detail: 'ask_user' },
+  spawn_agent:        { category: ToolCategory.SPAWN_AGENT,  detail: 'collab' },
+  send_input:         { category: ToolCategory.SPAWN_AGENT,  detail: 'collab' },
+  wait:               { category: ToolCategory.SPAWN_AGENT,  detail: 'collab' },
+  close_agent:        { category: ToolCategory.SPAWN_AGENT,  detail: 'collab' },
+  web_search:         { category: ToolCategory.SEARCH,       detail: 'web_search' },
 };

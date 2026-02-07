@@ -14,7 +14,8 @@ interface WatcherEvents {
 }
 
 /**
- * Watches Claude Code session JSONL files for new events.
+ * Watches agent session JSONL files for new events.
+ * Supports Claude Code and Codex CLI.
  * Emits 'line' events for each new JSONL line.
  */
 export class SessionWatcher extends TypedEmitter<WatcherEvents> {
@@ -34,6 +35,10 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
       join(config.projectsDir, '*', '*.jsonl'),
       join(config.projectsDir, '*', '*', 'subagents', '*.jsonl'),
     ];
+
+    if (config.codexSessionsDir) {
+      watchPatterns.push(join(config.codexSessionsDir, '**', '*.jsonl'));
+    }
 
     logger.verbose('Watcher', 'Starting file watcher...');
 
@@ -76,10 +81,10 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
         return;
       }
 
-      const { sessionId, agentId, project } = this.parseFilePath(filePath);
+      const { sessionId, agentId, project, source } = this.parseFilePath(filePath);
       const minutesAgo = Math.round(modifiedAgo / 60000);
 
-      logger.verbose('Watcher', `Tracking recent session: ${sessionId.slice(0, 8)}... (${minutesAgo}m ago)`);
+      logger.verbose('Watcher', `Tracking recent session (${source}): ${sessionId.slice(0, 8)}... (${minutesAgo}m ago)`);
 
       this.filePositions.set(filePath, stats.size);
       this.trackedSessions.add(sessionId);
@@ -90,6 +95,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
         project,
         filePath,
         action: 'discovered',
+        source,
       });
     } catch (err) {
       logger.error('Watcher', `Error reading file stats: ${(err as Error).message}`);
@@ -97,7 +103,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
   }
 
   async handleFileChange(filePath: string): Promise<void> {
-    const { sessionId, agentId } = this.parseFilePath(filePath);
+    const { sessionId, agentId, source } = this.parseFilePath(filePath);
     const previousPosition = this.filePositions.get(filePath) || 0;
 
     try {
@@ -110,7 +116,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
 
       if (!this.trackedSessions.has(sessionId)) {
         const { project } = this.parseFilePath(filePath);
-        logger.verbose('Watcher', `Session became active: ${sessionId.slice(0, 8)}...`);
+        logger.verbose('Watcher', `Session became active (${source}): ${sessionId.slice(0, 8)}...`);
         this.trackedSessions.add(sessionId);
 
         this.emit('session', {
@@ -119,6 +125,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
           project,
           filePath,
           action: 'discovered',
+          source,
         });
       }
 
@@ -132,6 +139,7 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
             sessionId,
             agentId,
             filePath,
+            source,
           });
         }
       }
@@ -160,6 +168,11 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
   }
 
   parseFilePath(filePath: string): ParsedFilePath {
+    // Codex rollout files: ~/.codex/sessions/YYYY/MM/DD/rollout-...-{uuid}.jsonl
+    if (config.codexSessionsDir && filePath.startsWith(config.codexSessionsDir)) {
+      return this.parseCodexFilePath(filePath);
+    }
+
     const fileName = basename(filePath, '.jsonl');
     const dirPath = dirname(filePath);
 
@@ -185,6 +198,23 @@ export class SessionWatcher extends TypedEmitter<WatcherEvents> {
       sessionId,
       agentId,
       project: projectPath,
+      source: 'claude-code',
+    };
+  }
+
+  private parseCodexFilePath(filePath: string): ParsedFilePath {
+    const fileName = basename(filePath, '.jsonl');
+    // Extract UUID from: rollout-YYYY-MM-DDThh-mm-ss-{uuid}
+    const uuidMatch = fileName.match(
+      /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+    );
+    const sessionId = uuidMatch ? uuidMatch[1]! : fileName;
+
+    return {
+      sessionId,
+      agentId: null,
+      project: 'codex',
+      source: 'codex',
     };
   }
 }
