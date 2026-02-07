@@ -32,8 +32,10 @@ if (args.includes('--help') || args.includes('-h')) {
   console.log(`
   ${pkg.name} v${pkg.version}
 
-  Watches Claude Code session files and broadcasts events
+  Watches AI agent session files and broadcasts events
   via WebSocket for the Pixel Office iOS app.
+
+  Supported agents: Claude Code, Codex CLI
 
   Usage
     $ pixelhq [options]
@@ -41,6 +43,7 @@ if (args.includes('--help') || args.includes('-h')) {
   Options
     --port <number>       WebSocket server port (default: 8765)
     --claude-dir <path>   Path to Claude config directory
+    --codex-dir <path>    Path to Codex config directory
     --yes, -y             Skip interactive prompts (non-interactive mode)
     --verbose             Show detailed debug logging
     --help, -h            Show this help message
@@ -49,6 +52,7 @@ if (args.includes('--help') || args.includes('-h')) {
   Environment variables
     PIXEL_OFFICE_PORT     WebSocket server port
     CLAUDE_CONFIG_DIR     Path to Claude config directory
+    CODEX_HOME            Path to Codex config directory
 
   Examples
     $ npx pixelhq
@@ -193,14 +197,18 @@ async function startBridge(
   try {
     const info = bridge.preflight();
     logger.info('\u2713 Claude Code detected at ' + info.claudeDir);
+    if (info.codexDir) {
+      logger.info('\u2713 Codex CLI detected at ' + info.codexDir);
+    }
   } catch (err) {
     console.log('');
-    console.log('  \u2717 Claude Code not found');
+    console.log('  \u2717 No supported agent found');
     console.log('');
-    console.log('  Could not find ~/.claude/projects directory.');
-    console.log('  Make sure Claude Code is installed and has been used at least once.');
+    console.log('  Make sure Claude Code or Codex CLI is installed and has been used at least once.');
     console.log('');
-    console.log('  Specify a custom path:  npx pixelhq --claude-dir /path/to/claude');
+    console.log('  Specify a custom path:');
+    console.log('    npx pixelhq --claude-dir /path/to/claude');
+    console.log('    npx pixelhq --codex-dir /path/to/codex');
     console.log('');
     process.exit(1);
   }
@@ -235,7 +243,7 @@ async function startBridge(
   console.log('  \u2551  connect. Code regenerates on restart. \u2551');
   console.log('  \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D');
   logger.blank();
-  logger.info('Waiting for Claude Code activity...');
+  logger.info('Waiting for agent activity...');
   logger.info('Press Ctrl+C to stop');
   logger.blank();
 }
